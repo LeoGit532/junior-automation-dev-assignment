@@ -1,4 +1,15 @@
-venv/
-.env
 __pycache__/
 *.pyc
+
+venv/
+.venv/
+.env
+
+logs/
+output/
+
+.vscode/
+
+relatorio_faturamento_*.xlsx
+
+data/laudos_renomeados/
