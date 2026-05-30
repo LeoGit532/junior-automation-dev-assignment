@@ -40,3 +40,12 @@ def normalize_date(value):
             return datetime.strptime(str(value), "%Y-%m-%d").date()
         except ValueError:
             return None
+        
+def normalize_ans(value):
+    if value is None:
+        return ""
+
+    try:
+        return str(int(float(value)))
+    except (ValueError, TypeError):
+        return str(value).strip()

@@ -6,7 +6,8 @@ CSV_PATH = "data/cobrancas_convenio.csv"
 from normalizer import (
     normalize_name,
     normalize_currency,
-    normalize_date
+    normalize_date,
+    normalize_ans
 )
 
 def load_files():
@@ -47,4 +48,31 @@ def consolidate_data():
         indicator=True
     )
 
+    consolidado["divergencias"] = consolidado.apply(
+        detect_divergences,
+        axis=1
+    )
     return consolidado
+
+def detect_divergences(row):
+    divergencias = []
+
+    if row["_merge"] == "right_only":
+        divergencias.append("FONTE_UNICA_CSV")
+
+    if row["_merge"] == "left_only":
+        divergencias.append("FONTE_UNICA_EXCEL")
+
+    if row["_merge"] == "both":
+
+        if abs(row["valor_normalizado"] - row["vl_liquido_normalizado"]) > 0.01:
+            divergencias.append("DIVERGENCIA_VALOR")
+
+        if row["paciente_normalizado"] != row["beneficiario_normalizado"]:
+            divergencias.append("DIVERGENCIA_NOME")
+        if normalize_ans(row["registro_ans"]) != normalize_ans(row["ans"]):
+            divergencias.append("DIVERGENCIA_CONVENIO")
+    if not divergencias:
+        return "SEM_DIVERGENCIAS"
+
+    return ";".join(divergencias)
