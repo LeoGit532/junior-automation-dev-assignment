@@ -1,18 +1,12 @@
-from consolidator import load_files
-from normalizer import normalize_name, normalize_currency, normalize_date
+from consolidator import consolidate_data
 
 
 def main():
-    excel_df, csv_df = load_files()
+    consolidado = consolidate_data()
 
-    print(normalize_name("Fernanda Costa"))
-    print(normalize_name("COSTA, FERNANDA"))
-
-    print(normalize_currency("260,00"))
-    print(normalize_currency(260))
-
-    print(normalize_date("01/11/2024"))
-    print(normalize_date("2024-11-04"))
+    print(consolidado.shape)
+    print(consolidado.head())
+    print(consolidado["_merge"].value_counts())
 
 
 if __name__ == "__main__":
