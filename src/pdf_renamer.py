@@ -165,28 +165,37 @@ def find_best_billing_match(pdf_path, consolidado):
         if record is not None:
             pdf_patient = extract_patient_from_pdf(
                 pdf_path
-            )
+    )
 
-            if (
-                pdf_patient
-                and pdf_patient == record["paciente_normalizado"]
-            ):
-                return {
-                    "approved": True,
-                    "status": "OK_GUIA_PDF",
-                    "patient": record["paciente_normalizado"],
-                    "patient_score": 100,
-                    "billing_id": record["id_cobranca"],
-                    "procedure": record["procedimento"],
-                    "procedure_score": 100,
-                    "record": record
-                }
-                
-            return build_rejected_result(
-                status="GUIA_PDF_DIVERGE_PACIENTE",
-                patient=pdf_patient,
-                billing_id=billing_id
-            )
+            if pdf_patient:
+                patient_similarity = fuzz.ratio(
+                    pdf_patient,
+                    record["paciente_normalizado"]
+                )
+
+                if patient_similarity >= 95:
+                    return {
+                        "approved": True,
+                        "status": "OK_GUIA_PDF",
+                        "patient": record["paciente_normalizado"],
+                        "patient_score": patient_similarity,
+                        "billing_id": record["id_cobranca"],
+                        "procedure": record["procedimento"],
+                        "procedure_score": 100,
+                        "record": record
+                    }
+
+                return build_rejected_result(
+                    status="GUIA_PDF_DIVERGE_PACIENTE",
+                    patient=pdf_patient,
+                    patient_score=patient_similarity,
+                    billing_id=billing_id
+                )
+
+    return build_rejected_result(
+        status="PACIENTE_NAO_ENCONTRADO_NO_PDF",
+        billing_id=billing_id
+    )
     pdf_name = Path(pdf_path).stem
 
     patients = (

@@ -1,14 +1,14 @@
 import pandas as pd
 
-EXCEL_PATH = "data/cobrancas_internas.xlsx"
-CSV_PATH = "data/cobrancas_convenio.csv"
-
 from normalizer import (
     normalize_name,
     normalize_currency,
-    normalize_date,
     normalize_ans
 )
+
+EXCEL_PATH = "data/cobrancas_internas.xlsx"
+CSV_PATH = "data/cobrancas_convenio.csv"
+
 
 def load_files():
     excel_df = pd.read_excel(EXCEL_PATH)
@@ -52,7 +52,9 @@ def consolidate_data():
         detect_divergences,
         axis=1
     )
+
     return consolidado
+
 
 def detect_divergences(row):
     divergencias = []
@@ -64,14 +66,27 @@ def detect_divergences(row):
         divergencias.append("FONTE_UNICA_EXCEL")
 
     if row["_merge"] == "both":
-
-        if abs(row["valor_normalizado"] - row["vl_liquido_normalizado"]) > 0.01:
+        if (
+            abs(
+                row["valor_normalizado"]
+                - row["vl_liquido_normalizado"]
+            )
+            > 0.01
+        ):
             divergencias.append("DIVERGENCIA_VALOR")
 
-        if row["paciente_normalizado"] != row["beneficiario_normalizado"]:
+        if (
+            row["paciente_normalizado"]
+            != row["beneficiario_normalizado"]
+        ):
             divergencias.append("DIVERGENCIA_NOME")
-        if normalize_ans(row["registro_ans"]) != normalize_ans(row["ans"]):
+
+        if (
+            normalize_ans(row["registro_ans"])
+            != normalize_ans(row["ans"])
+        ):
             divergencias.append("DIVERGENCIA_CONVENIO")
+
     if not divergencias:
         return "SEM_DIVERGENCIAS"
 
