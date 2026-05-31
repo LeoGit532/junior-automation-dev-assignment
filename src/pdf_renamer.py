@@ -3,26 +3,12 @@ import shutil
 from pathlib import Path
 
 from pypdf import PdfReader
-from rapidfuzz import process, fuzz
+from rapidfuzz import fuzz
 
 from normalizer import normalize_name
 
 
-MIN_PATIENT_SCORE = 80
-MIN_PROCEDURE_SCORE = 65
-MIN_SCORE_GAP = 10
-
-PROCEDURE_ALIASES = {
-    "ECO": "ECOCARDIOGRAMA",
-    "ELE": "ELETROCARDIOGRAMA",
-    "END": "ENDOSCOPIA DIGESTIVA",
-    "RES": "RESSONANCIA MAGNETICA",
-    "TOM": "TOMOGRAFIA COMPUTADORIZADA",
-    "ULT": "ULTRASSOM ABDOMINAL",
-    "ESP": "ESPIROMETRIA",
-    "RAI": "RAIO X TORAX",
-    "EXA": "EXAME DE SANGUE COMPLETO",
-}
+MIN_PATIENT_PDF_SCORE = 95
 
 
 def extract_pdf_text(pdf_path):
@@ -63,71 +49,6 @@ def extract_billing_id_from_pdf(pdf_path):
     return None
 
 
-def normalize_pdf_name(pdf_name):
-    cleaned = pdf_name.lower()
-
-    cleaned = cleaned.replace("_", " ")
-    cleaned = cleaned.replace("-", " ")
-
-    cleaned = re.sub(r"\bnov\s?24\b", " ", cleaned)
-    cleaned = re.sub(r"\b\d{1,2}\s\d{1,2}\b", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-    normalized = normalize_name(cleaned)
-
-    words = normalized.split()
-    expanded_words = [
-        PROCEDURE_ALIASES.get(word, word)
-        for word in words
-    ]
-
-    return " ".join(expanded_words)
-
-
-def find_best_patient_match(pdf_name, patient_names):
-    normalized_pdf_name = normalize_pdf_name(pdf_name)
-
-    matches = process.extract(
-        normalized_pdf_name,
-        patient_names,
-        scorer=fuzz.partial_ratio,
-        limit=2
-    )
-
-    if not matches:
-        return {
-            "patient": None,
-            "score": 0,
-            "second_score": 0,
-            "score_gap": 0,
-            "status": "SEM_MATCH",
-            "approved": False
-        }
-
-    best_patient, best_score, _ = matches[0]
-    second_score = matches[1][1] if len(matches) > 1 else 0
-    score_gap = best_score - second_score
-
-    if best_score < MIN_PATIENT_SCORE:
-        status = "BAIXA_CONFIANCA"
-        approved = False
-    elif best_score < 100 and score_gap < MIN_SCORE_GAP:
-        status = "AMBIGUO"
-        approved = False
-    else:
-        status = "OK"
-        approved = True
-
-    return {
-        "patient": best_patient,
-        "score": best_score,
-        "second_score": second_score,
-        "score_gap": score_gap,
-        "status": status,
-        "approved": approved
-    }
-
-
 def find_record_by_billing_id(billing_id, consolidado):
     match = consolidado[
         consolidado["id_cobranca"].eq(billing_id)
@@ -165,7 +86,7 @@ def find_best_billing_match(pdf_path, consolidado):
         if record is not None:
             pdf_patient = extract_patient_from_pdf(
                 pdf_path
-    )
+            )
 
             if pdf_patient:
                 patient_similarity = fuzz.ratio(
@@ -173,7 +94,7 @@ def find_best_billing_match(pdf_path, consolidado):
                     record["paciente_normalizado"]
                 )
 
-                if patient_similarity >= 95:
+                if patient_similarity >= MIN_PATIENT_PDF_SCORE:
                     return {
                         "approved": True,
                         "status": "OK_GUIA_PDF",
@@ -196,87 +117,6 @@ def find_best_billing_match(pdf_path, consolidado):
         status="PACIENTE_NAO_ENCONTRADO_NO_PDF",
         billing_id=billing_id
     )
-    pdf_name = Path(pdf_path).stem
-
-    patients = (
-        consolidado["paciente_normalizado"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
-
-    patient_result = find_best_patient_match(
-        pdf_name,
-        patients
-    )
-
-    if not patient_result["approved"]:
-        return build_rejected_result(
-            status=patient_result["status"],
-            patient=patient_result["patient"],
-            patient_score=patient_result["score"]
-        )
-
-    patient_records = consolidado[
-        consolidado["paciente_normalizado"]
-        == patient_result["patient"]
-    ].copy()
-
-    procedure_choices = {
-        normalize_name(row["procedimento"]): index
-        for index, row in patient_records.iterrows()
-    }
-
-    normalized_pdf_name = normalize_pdf_name(
-        pdf_name
-    )
-
-    procedure_match = process.extractOne(
-        normalized_pdf_name,
-        list(procedure_choices.keys()),
-        scorer=fuzz.token_set_ratio
-    )
-
-    if procedure_match is None:
-        return build_rejected_result(
-            status="SEM_PROCEDIMENTO",
-            patient=patient_result["patient"],
-            patient_score=patient_result["score"]
-        )
-
-    procedure_name, procedure_score, _ = procedure_match
-
-    record_index = procedure_choices[
-        procedure_name
-    ]
-
-    record = consolidado.loc[
-        record_index
-    ]
-
-    approved = (
-        procedure_score
-        >= MIN_PROCEDURE_SCORE
-    )
-
-    if not approved:
-        return build_rejected_result(
-            status="PROCEDIMENTO_BAIXA_CONFIANCA",
-            patient=patient_result["patient"],
-            patient_score=patient_result["score"],
-            billing_id=record["id_cobranca"]
-        )
-
-    return {
-        "approved": True,
-        "status": "OK_SIMILARIDADE",
-        "patient": patient_result["patient"],
-        "patient_score": patient_result["score"],
-        "billing_id": record["id_cobranca"],
-        "procedure": record["procedimento"],
-        "procedure_score": procedure_score,
-        "record": record
-    }
 
 
 def generate_pdf_filename(record):
