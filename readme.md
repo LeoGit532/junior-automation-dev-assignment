@@ -1,48 +1,35 @@
 # Junior Automation Dev Assignment
 
+Automação para conciliação de cobranças médicas, processamento de laudos PDF, geração de relatório Excel e envio automático por e-mail.
+
 ## Visão Geral
 
-Este projeto automatiza o processo de conciliação de cobranças médicas a partir de dados provenientes de planilhas Excel, arquivos CSV e laudos em PDF.
+O projeto consolida dados de faturamento a partir de uma planilha Excel interna, um arquivo CSV do convênio e laudos médicos em PDF.
 
-O pipeline realiza:
+O pipeline executa as seguintes etapas:
 
-* Consolidação de dados de múltiplas fontes
-* Normalização de informações
-* Identificação de divergências
-* Associação de laudos aos registros de cobrança
-* Renomeação automática de PDFs
-* Geração de relatório Excel consolidado
-* Envio do relatório por e-mail
-* Execução automatizada via script
-
----
-
-## Funcionalidades
-
-* Leitura de cobranças a partir de Excel e CSV
-* Normalização de nomes, datas, convênios e valores
-* Consolidação de registros entre fontes
-* Detecção de divergências de faturamento
-* Extração de informações dos laudos PDF
-* Associação de laudos aos registros de cobrança
-* Renomeação automática de PDFs validados
-* Geração de relatório Excel com resumo, detalhamento e alertas
-* Validação dos PDFs processados
-* Envio automático do relatório por e-mail
-
----
+- Leitura dos arquivos de entrada
+- Normalização de nomes, valores e registros ANS
+- Consolidação das cobranças entre Excel e CSV
+- Identificação de divergências de faturamento
+- Extração de informações dos PDFs
+- Associação segura dos laudos aos registros de cobrança
+- Renomeação automática dos PDFs aprovados
+- Validação dos PDFs renomeados
+- Geração de relatório Excel consolidado
+- Envio automático do relatório por e-mail
+- Registro de logs da execução
 
 ## Tecnologias Utilizadas
 
-* Python 3.12+
-* Pandas
-* OpenPyXL
-* RapidFuzz
-* Unidecode
-* PyPDF2
-* Python Dotenv
-
----
+- Python 3.12+
+- pandas
+- openpyxl
+- RapidFuzz
+- Unidecode
+- pypdf
+- python-dotenv
+- Shell Script
 
 ## Estrutura do Projeto
 
@@ -58,16 +45,17 @@ src/
 ├── normalizer.py
 ├── pdf_renamer.py
 ├── report_generator.py
-├── email_sender.py
-└── ...
+└── email_sender.py
 
 output/
 ├── laudos_renomeados/
-├── relatorios/
-└── logs/
-```
+└── relatorios/
 
----
+logs/
+run_pipeline.sh
+requirements.txt
+.env.example
+```
 
 ## Instalação
 
@@ -84,13 +72,15 @@ Instale as dependências:
 pip install -r requirements.txt
 ```
 
----
+No Windows, caso o comando `python` não esteja configurado, use:
 
-## Configuração
+```bash
+py -m pip install -r requirements.txt
+```
 
-Crie um arquivo `.env` a partir do `.env.example`.
+## Configuração do E-mail
 
-Exemplo:
+Crie um arquivo `.env` a partir do `.env.example`:
 
 ```env
 SMTP_HOST=smtp.gmail.com
@@ -103,48 +93,52 @@ EMAIL_FROM=seu_email@gmail.com
 EMAIL_TO=destinatario@email.com
 ```
 
-Para testes, pode ser utilizado:
+Para testes, pode ser usado Gmail com App Password ou um serviço como Mailtrap.
 
-* Gmail com App Password
-* Mailtrap
+## Execução Manual
 
----
-
-## Execução
-
-Executar o pipeline manualmente:
+Execute o pipeline diretamente:
 
 ```bash
 py src/main.py
 ```
 
----
-
-## Execução Automatizada
-
-Executar o pipeline completo:
+Ou pelo script de automação:
 
 ```bash
 bash run_pipeline.sh
 ```
 
-O script registra logs e retorna código de erro em caso de falha.
+## Execução Automatizada
 
-O comando cron para execução automática está documentado dentro do próprio script.
+O agendamento solicitado no desafio está documentado no topo do arquivo `run_pipeline.sh`.
 
----
+Exemplo de cron para executar toda segunda-feira às 06:30:
+
+```cron
+30 6 * * 1 /caminho/do/projeto/run_pipeline.sh
+```
+
+No Windows, o mesmo fluxo pode ser configurado no Agendador de Tarefas usando:
+
+```text
+Programa: C:\Windows\System32\bash.exe
+Argumentos: run_pipeline.sh
+Iniciar em: D:\junior-automation-dev-assignment
+Frequência: semanal, segunda-feira, 06:30
+```
 
 ## Arquivos Gerados
 
 ### PDFs Renomeados
 
-Diretório:
+Os PDFs aprovados são copiados para:
 
 ```text
 output/laudos_renomeados/
 ```
 
-Formato:
+Formato do nome:
 
 ```text
 CPF-PACIENTE-COBRANCA-MMAAAA.pdf
@@ -158,42 +152,47 @@ Exemplo:
 
 ### Relatório Excel
 
-Diretório:
+O relatório é gerado em:
 
 ```text
 output/relatorios/
 ```
 
-O relatório contém três abas:
+Ele contém três abas:
 
-#### Resumo
+- `Resumo`: indicadores gerais do processamento
+- `Detalhamento`: registros consolidados com dados do Excel e CSV
+- `Alertas`: registros com divergências ou inconsistências
 
-* Total de cobranças consolidadas
-* Registros presentes em ambas as fontes
-* Registros exclusivos por fonte
-* Valor líquido total
-* Total de glosas
-* PDFs processados
-* PDFs renomeados
-* PDFs enviados para revisão manual
+## Estratégia de Associação dos PDFs
 
-#### Detalhamento
+O sistema prioriza associações seguras:
 
-Contém todos os registros consolidados com informações enriquecidas, incluindo:
+1. Extrai o número da guia do PDF.
+2. Busca a guia nos registros consolidados.
+3. Extrai o nome do paciente do PDF.
+4. Compara o paciente do PDF com o paciente do registro usando similaridade textual.
+5. Aprova automaticamente apenas casos com confiança suficiente.
+6. Encaminha divergências para revisão manual.
 
-* CPF
-* Convênio
-* Procedimento
-* Datas
-* Valores
-* Divergências identificadas
+Essa abordagem reduz o risco de associar um laudo ao paciente errado.
 
-#### Alertas
+## Resultado do Processamento
 
-Contém apenas registros que apresentaram inconsistências:
+Com os arquivos fornecidos no desafio, o pipeline processou:
 
-* Divergência de valor
-* Divergência de nome
-* Divergência de convênio
-* Registro presente em apenas uma fonte
+- 324 PDFs
+- 165 PDFs renomeados automaticamente
+- 138 PDFs enviados para revisão manual
+- 3 alertas de validação nos PDFs renomeados
 
+Os alertas de validação são registrados no log para análise posterior.
+
+## Melhorias Futuras
+
+- Gerar um arquivo CSV com os casos de revisão manual
+- Adicionar testes automatizados
+- Criar pipeline de CI com GitHub Actions
+- Persistir histórico em PostgreSQL
+- Adicionar suporte a arquivos XML
+- Melhorar monitoramento e alertas operacionais
